@@ -20,6 +20,7 @@ const RootQuery = new GraphQLObjectType({
       args: { user_id: { type: GraphQLID }, username: { type: GraphQLString } },
       resolve(_parent, args, { userID }) {
         if (!userID) {
+          console.log("user Request");
           throw new Error(`Unauthorized Request`);
         }
         if (args.user_id) {
@@ -35,6 +36,7 @@ const RootQuery = new GraphQLObjectType({
       args: { tweet_id: { type: new GraphQLNonNull(GraphQLID) } },
       resolve(_parent, args, { userID }) {
         if (!userID) {
+          console.log("tweet Request");
           throw new Error(`Unauthorized Request`);
         }
         return Tweet.findById(args.tweet_id);
@@ -45,6 +47,7 @@ const RootQuery = new GraphQLObjectType({
       args: { author_id: { type: new GraphQLNonNull(GraphQLID) } },
       resolve(_parent, args, { userID }) {
         if (!userID) {
+          console.log("tweets Request");
           throw new Error(`Unauthorized Request`);
         }
         return Tweet.find({ author: args.author_id });
@@ -60,7 +63,7 @@ const RootQuery = new GraphQLObjectType({
       },
       async resolve(_parent, args, { userID }) {
         if (!userID || userID.userID !== args.user_id) {
-          console.log(userID, args.user_id);
+          console.log("tweetsByFollowing Request");
           throw new Error(`Unauthorized Request`);
         }
         const user = await User.findById(args.user_id);
@@ -77,6 +80,7 @@ const RootQuery = new GraphQLObjectType({
       type: new GraphQLList(UserType),
       resolve(_parent, _args, { userID }) {
         if (!userID) {
+          console.log("users Request");
           throw new Error(`Unauthorized Request`);
         }
         return User.find();
@@ -87,6 +91,7 @@ const RootQuery = new GraphQLObjectType({
       args: { user_id: { type: new GraphQLNonNull(GraphQLID) } },
       resolve(_parent, args, { userID }) {
         if (!userID || userID.userID !== args.user_id) {
+          console.log("usersNotFollowing Request");
           throw new Error(`Unauthorized Request`);
         }
 
@@ -130,7 +135,7 @@ const Mutation = new GraphQLObjectType({
             user: savedUser,
           };
         } catch (error) {
-          throw new Error("User not saved");
+          throw new Error(`User not saved ${error}`);
         }
       },
     },
@@ -169,6 +174,7 @@ const Mutation = new GraphQLObjectType({
       },
       async resolve(_parent, args, { userID }) {
         if (!userID || userID.userID !== args.user_id) {
+          console.log("updatedUser Request");
           throw new Error(`Unauthorized Request`);
         }
 
@@ -231,9 +237,10 @@ const Mutation = new GraphQLObjectType({
         authorID: { type: new GraphQLNonNull(GraphQLString) },
       },
       async resolve(_parents, args, { userID }) {
-        // if (!userID || userID.userID !== args.authorID) {
-        //   throw new Error(`Unauthorized Request`);
-        // }
+        if (!userID || userID.userID !== args.authorID) {
+          console.log("addTweet Request");
+          throw new Error(`Unauthorized Request`);
+        }
         const tweet = new Tweet({
           content: args.content,
           author: args.authorID,
@@ -253,14 +260,17 @@ const Mutation = new GraphQLObjectType({
         content: { type: new GraphQLNonNull(GraphQLString) },
       },
       async resolve(_parents, args, { userID }) {
+        console.log("updateTweet Request");
         if (!userID) throw new Error(`Unauthorized Request`);
 
         try {
           const existingTweet = await Tweet.findById(args.tweet_id);
           if (!existingTweet) throw new Error("Tweet not found!");
 
-          if (existingTweet.author !== userID.userID)
+          if (existingTweet.author !== userID.userID) {
+            console.log("updateTweet Request");
             throw new Error("Unauthorized Request");
+          }
 
           existingTweet.content = args.content;
           return existingTweet.save();
@@ -276,6 +286,7 @@ const Mutation = new GraphQLObjectType({
       },
       async resolve(_parents, args, { userID }) {
         if (!userID) {
+          console.log("deleteTweet Request");
           throw new Error(`Unauthorized Request`);
         }
         try {
@@ -283,6 +294,7 @@ const Mutation = new GraphQLObjectType({
           if (!existingTweet) throw new Error("Tweet not found!");
 
           if (existingTweet.author!.toString() !== userID.userID) {
+            console.log("deleteTweet Request");
             throw new Error("Unauthorized Request");
           }
 
