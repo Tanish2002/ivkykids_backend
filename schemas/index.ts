@@ -128,7 +128,7 @@ const Mutation = new GraphQLObjectType({
         try {
           const savedUser = await user.save();
           const token = jwt.sign({ userID: savedUser._id }, "TOKEN", {
-            expiresIn: "1h",
+            expiresIn: "7d",
           });
           return {
             token: token,
@@ -152,7 +152,7 @@ const Mutation = new GraphQLObjectType({
         if (!compare) throw new Error("Invalid Credentials");
 
         const token = jwt.sign({ userID: user._id }, "TOKEN", {
-          expiresIn: "1h",
+          expiresIn: "7d",
         });
         return {
           token: token,
