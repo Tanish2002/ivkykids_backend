@@ -8,9 +8,10 @@ import {
 } from "graphql";
 import { UserWithTokenType, UserType } from "./typedefs/userType";
 import { Tweet, User } from "../models";
-import TweetType from "./typedefs/tweetType";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { FileScalar, TweetType } from "./typedefs/tweetType";
+import { deleteFromCloud, uploadFromBuffer } from "../utils";
 
 const RootQuery = new GraphQLObjectType({
   name: "RootQueryType",
@@ -50,7 +51,7 @@ const RootQuery = new GraphQLObjectType({
           console.log("tweets Request");
           throw new Error(`Unauthorized Request`);
         }
-        return Tweet.find({ author: args.author_id });
+        return Tweet.find({ author: args.author_id }).sort({ createdAt: -1 });
       },
     },
     tweetsByFollowing: {
@@ -115,6 +116,7 @@ const Mutation = new GraphQLObjectType({
         username: { type: new GraphQLNonNull(GraphQLString) },
         password: { type: new GraphQLNonNull(GraphQLString) },
         name: { type: new GraphQLNonNull(GraphQLString) },
+        avatar: { type: FileScalar },
         bio: { type: GraphQLString },
       },
       async resolve(_parent, args) {
@@ -125,6 +127,21 @@ const Mutation = new GraphQLObjectType({
           name: args.name,
           bio: args.bio,
         });
+
+        // avatar Handling
+        if (args.avatar) {
+          console.log(args.avatar); // This will only execute if args.file is of type File
+          const file: File = args.avatar as File;
+          console.log("File: ", file);
+          const response = await uploadFromBuffer(file);
+          const modifiedUrl = response.secure_url.replace(
+            "/upload/",
+            "/upload/q_auto/",
+          );
+          user.avatar!.url = modifiedUrl;
+          user.avatar!.publicID = response.public_id;
+        }
+
         try {
           const savedUser = await user.save();
           const token = jwt.sign({ userID: savedUser._id }, "TOKEN", {
@@ -169,6 +186,7 @@ const Mutation = new GraphQLObjectType({
         },
         name: { type: GraphQLString },
         bio: { type: GraphQLString },
+        avatar: { type: FileScalar },
         followingToAdd: { type: new GraphQLList(GraphQLID) },
         followingToRemove: { type: new GraphQLList(GraphQLID) },
       },
@@ -192,6 +210,25 @@ const Mutation = new GraphQLObjectType({
 
           if (!updatedUser) {
             throw new Error("User not found");
+          }
+
+          if (args.avatar) {
+            const new_image = await uploadFromBuffer(
+              args.file,
+              updatedUser.avatar?.publicID,
+            );
+            const modifiedUrl = new_image.secure_url.replace(
+              "/upload/",
+              "/upload/q_auto/",
+            );
+
+            updatedUser = await User.findByIdAndUpdate(args.user_id, {
+              $set: {
+                avatar: {
+                  url: modifiedUrl,
+                },
+              },
+            });
           }
 
           if (args.followingToAdd) {
@@ -235,16 +272,30 @@ const Mutation = new GraphQLObjectType({
       args: {
         content: { type: new GraphQLNonNull(GraphQLString) },
         authorID: { type: new GraphQLNonNull(GraphQLString) },
+        file: { type: FileScalar },
       },
       async resolve(_parents, args, { userID }) {
         if (!userID || userID.userID !== args.authorID) {
           console.log("addTweet Request");
           throw new Error(`Unauthorized Request`);
         }
-        const tweet = new Tweet({
+
+        let tweet = new Tweet({
           content: args.content,
           author: args.authorID,
         });
+
+        if (args.file) {
+          const file: File = args.file;
+          const response = await uploadFromBuffer(file);
+          const modifiedUrl = response.secure_url.replace(
+            "/upload/",
+            "/upload/q_auto/",
+          );
+          tweet.media!.url = modifiedUrl;
+          tweet.media!.publicID = response.public_id;
+        }
+
         try {
           const savedTweet = await tweet.save();
           return savedTweet;
@@ -258,6 +309,7 @@ const Mutation = new GraphQLObjectType({
       args: {
         tweet_id: { type: new GraphQLNonNull(GraphQLID) },
         content: { type: new GraphQLNonNull(GraphQLString) },
+        file: { type: FileScalar },
       },
       async resolve(_parents, args, { userID }) {
         console.log("updateTweet Request");
@@ -270,6 +322,11 @@ const Mutation = new GraphQLObjectType({
           if (existingTweet.author !== userID.userID) {
             console.log("updateTweet Request");
             throw new Error("Unauthorized Request");
+          }
+
+          if (args.file) {
+            const res = await uploadFromBuffer(args.file);
+            existingTweet.media!.url = res.secure_url;
           }
 
           existingTweet.content = args.content;
@@ -296,6 +353,10 @@ const Mutation = new GraphQLObjectType({
           if (existingTweet.author!.toString() !== userID.userID) {
             console.log("deleteTweet Request");
             throw new Error("Unauthorized Request");
+          }
+
+          if (existingTweet.media) {
+            await deleteFromCloud(existingTweet.media.publicID!);
           }
 
           return existingTweet.deleteOne();
