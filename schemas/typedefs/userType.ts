@@ -6,6 +6,14 @@ import {
 } from "graphql";
 import { User } from "../../models";
 
+const avatarType: GraphQLObjectType = new GraphQLObjectType({
+  name: "Avatar",
+  fields: () => ({
+    url: { type: GraphQLString },
+    publicID: { type: GraphQLString },
+  }),
+});
+
 const UserType: GraphQLObjectType = new GraphQLObjectType({
   name: "User",
   fields: () => ({
@@ -13,6 +21,7 @@ const UserType: GraphQLObjectType = new GraphQLObjectType({
     username: { type: GraphQLString },
     name: { type: GraphQLString },
     password: { type: GraphQLString },
+    avatar: { type: avatarType },
     bio: { type: GraphQLString },
     followers: {
       type: new GraphQLList(UserType),

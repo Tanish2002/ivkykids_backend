@@ -1,38 +1,52 @@
 import express, { Express } from "express";
-import { createHandler } from "graphql-http/lib/use/express";
 import mongoose from "mongoose";
 import { getUserFromAuthorizationHeader } from "./utils";
 import schema from "./schemas";
 import cors from "cors";
+import { default as expressPlayground } from "graphql-playground-middleware-express";
+import { v2 as cloudinary } from "cloudinary";
+import { createYoga } from "graphql-yoga";
+import "dotenv/config";
 
-const expressPlayground =
-  require("graphql-playground-middleware-express").default;
-
-const app: Express = express();
+// Mongoose Connection
+const role = process.env.MONGO_ROLE;
+const password = process.env.MONGO_PASSWORD;
+const host = process.env.MONGO_HOST;
+const db_name = process.env.MONGO_DBNAME;
 mongoose.connect(
-  "mongodb+srv://tanish2002:R41THMnOifyCbqXt@mongodb.tyczdzq.mongodb.net/ivykids?retryWrites=true&w=majority",
+  `mongodb+srv://${role}:${password}@${host}/${db_name}?retryWrites=true&w=majority`,
 );
 mongoose.connection.once("open", () => {
   console.log("Connected to DATABASE");
 });
 
+// Cloudinary Config
+const cloud_name = process.env.CLOUDINARY_NAME;
+const api_key = process.env.CLOUDINARY_KEY;
+const cloudinary_secret = process.env.CLOUDINARY_SECRET;
+cloudinary.config({
+  cloud_name: cloud_name,
+  api_key: api_key,
+  api_secret: cloudinary_secret,
+});
+
+const app: Express = express();
 app.use(cors({ credentials: true }));
 
 app.get("/", expressPlayground({ endpoint: "/graphql" }));
 
-const handler = createHandler({
+const yoga = createYoga({
   schema,
-  context: (req) => {
-    // authenticate user and attach it to your graphql context
+  context: async ({ request }) => {
     const userID = getUserFromAuthorizationHeader(
-      (req.headers as any).authorization,
+      request.headers.get("authorization"),
     );
-
     return { userID: userID };
   },
+  graphiql: true,
 });
 
-app.all("/graphql", handler);
+app.use("/graphql", yoga);
 
 app.listen("9090", () => {
   console.log(`⚡️[server]: Server is running at http://localhost:9090`);
